@@ -278,6 +278,10 @@ function hasPermission(viewName) {
   return currentUser.role === "admin" || currentUser.permissions.includes(viewName);
 }
 
+function isAdmin() {
+  return currentUser?.role === "admin";
+}
+
 function getFirstAllowedView() {
   return allPages.find((page) => hasPermission(page)) || "dashboard";
 }
@@ -446,6 +450,7 @@ function orderRowTemplate(order) {
   const status = getOrderStatus(order);
   const paidIncome = getPaymentAmount(order.id, "income");
   const paidExpense = getPaymentAmount(order.id, "expense");
+  const deleteButton = isAdmin() ? `<button type="button" data-action="delete" data-id="${order.id}">刪除</button>` : "";
 
   return `
     <tr>
@@ -463,6 +468,7 @@ function orderRowTemplate(order) {
         <div class="row-actions">
           <button type="button" data-action="edit" data-id="${order.id}">編輯</button>
           <button type="button" data-action="quickpay" data-id="${order.id}">收款</button>
+          ${deleteButton}
         </div>
       </td>
     </tr>
@@ -497,6 +503,9 @@ function paymentItemTemplate(payment) {
   const order = state.orders.find((item) => item.id === payment.orderId);
   const direction = (payment.direction || "income") === "expense" ? "供應商付款" : "客戶收款";
   const currency = (payment.direction || "income") === "expense" ? order?.costCurrency : order?.incomeCurrency;
+  const deleteButton = isAdmin()
+    ? `<button type="button" data-payment-action="delete" data-id="${payment.id}">刪除</button>`
+    : "";
   return `
     <article class="list-item">
       <header>
@@ -505,6 +514,7 @@ function paymentItemTemplate(payment) {
       </header>
       <p>${escapeHtml(direction)}｜${escapeHtml(order?.customer || "-")}｜${escapeHtml(payment.method || "-")}｜${escapeHtml(payment.accountCode || "未填科目")}</p>
       ${payment.note ? `<p>${escapeHtml(payment.note)}</p>` : ""}
+      ${deleteButton ? `<div class="row-actions">${deleteButton}</div>` : ""}
     </article>
   `;
 }
@@ -763,6 +773,37 @@ function syncPaymentStatus(orderId, direction) {
     const paid = getPaymentAmount(orderId, "expense");
     order.supplierPaymentStatus = paid >= Number(order.supplierAmount || 0) ? "已付款" : "未付款";
   }
+}
+
+function syncAllPaymentStatuses(orderId) {
+  syncPaymentStatus(orderId, "income");
+  syncPaymentStatus(orderId, "expense");
+}
+
+function deleteOrder(orderId) {
+  if (!isAdmin()) return;
+  const order = state.orders.find((item) => item.id === orderId);
+  if (!order) return;
+  const confirmed = confirm(`確定要刪除 ${order.groupNo} 的案件資料？相關付款紀錄也會一併刪除。`);
+  if (!confirmed) return;
+
+  state.orders = state.orders.filter((item) => item.id !== orderId);
+  state.payments = state.payments.filter((payment) => payment.orderId !== orderId);
+  saveState();
+  render();
+}
+
+function deletePayment(paymentId) {
+  if (!isAdmin()) return;
+  const payment = state.payments.find((item) => item.id === paymentId);
+  if (!payment) return;
+  const confirmed = confirm("確定要刪除這筆付款紀錄？");
+  if (!confirmed) return;
+
+  state.payments = state.payments.filter((item) => item.id !== paymentId);
+  syncAllPaymentStatuses(payment.orderId);
+  saveState();
+  render();
 }
 
 function switchView(viewName) {
@@ -1059,6 +1100,16 @@ document.querySelector("#ordersTableBody").addEventListener("click", (event) => 
     document.querySelector("#paymentAmountInput").value = Math.max(Number(order.customerAmount || 0) - getPaymentAmount(order.id, "income"), 0);
     document.querySelector("#paymentDateInput").value = today();
   }
+
+  if (button.dataset.action === "delete") {
+    deleteOrder(order.id);
+  }
+});
+
+document.querySelector("#paymentsList").addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (!button || button.dataset.paymentAction !== "delete") return;
+  deletePayment(button.dataset.id);
 });
 
 document.querySelector("#usersTableBody").addEventListener("click", (event) => {
