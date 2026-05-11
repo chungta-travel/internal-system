@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>訂單付款追蹤系統</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <section class="login-screen" id="loginScreen">
+      <form class="login-card" id="loginForm">
+        <div class="brand login-brand">
+          <div class="brand-mark">OP</div>
+          <div>
+            <p class="eyebrow">Order Payment</p>
+            <h1>訂單付款追蹤</h1>
+          </div>
+        </div>
+        <div>
+          <h2>登入系統</h2>
+          <p class="muted">主管理員可在後台新增員工帳號、部門與頁面權限。</p>
+        </div>
+        <label>
+          <span>帳號</span>
+          <input id="loginUsernameInput" autocomplete="username" required />
+        </label>
+        <label>
+          <span>密碼</span>
+          <input id="loginPasswordInput" type="password" autocomplete="current-password" required />
+        </label>
+        <p class="form-error" id="loginError" role="alert"></p>
+        <button class="primary-button" type="submit">登入</button>
+        <p class="login-hint">初始主管理員：admin / admin123</p>
+      </form>
+    </section>
+
+    <div class="app-shell is-hidden" id="appShell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">OP</div>
+          <div>
+            <p class="eyebrow">Order Payment</p>
+            <h1>訂單付款追蹤</h1>
+          </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="主要功能">
+          <button class="nav-tab is-active" data-view="dashboard" type="button">
+            <span>總覽</span>
+          </button>
+          <button class="nav-tab" data-view="orders" type="button">
+            <span>訂單管理</span>
+          </button>
+          <button class="nav-tab" data-view="payments" type="button">
+            <span>付款紀錄</span>
+          </button>
+          <button class="nav-tab" data-view="accounting" type="button">
+            <span>會計檢視</span>
+          </button>
+          <button class="nav-tab" data-view="import" type="button">
+            <span>資料匯入</span>
+          </button>
+          <button class="nav-tab" data-view="admin" type="button">
+            <span>員工權限</span>
+          </button>
+        </nav>
+
+        <div class="user-card">
+          <strong id="currentUserName">-</strong>
+          <p id="currentUserMeta">-</p>
+          <button class="ghost-button logout-button" id="logoutButton" type="button">登出</button>
+        </div>
+
+        <div class="sidebar-note">
+          <strong>資料儲存</strong>
+          <p>依三個分頁欄位設計：公司辦理、VISA、FAST TRACK。</p>
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">客服、OP、會計共用工作台</p>
+            <h2 id="viewTitle">總覽</h2>
+          </div>
+          <div class="topbar-actions">
+            <button class="ghost-button" id="exportCsvButton" type="button">匯出 CSV</button>
+            <button class="primary-button" id="openOrderModalButton" type="button">新增訂單</button>
+          </div>
+        </header>
+
+        <section class="view is-active" id="dashboardView">
+          <div class="metrics-grid" id="metricsGrid"></div>
+
+          <div class="workspace-grid">
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">需要處理</p>
+                  <h3>待追蹤訂單</h3>
+                </div>
+              </div>
+              <div class="compact-list" id="followupList"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">近期款項</p>
+                  <h3>最新收付</h3>
+                </div>
+              </div>
+              <div class="compact-list" id="recentPaymentsList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="ordersView">
+          <div class="toolbar">
+            <label class="search-field">
+              <span>搜尋</span>
+              <input id="orderSearchInput" type="search" placeholder="團體編號、客戶、供應商、備註" />
+            </label>
+            <label>
+              <span>狀態</span>
+              <select id="statusFilter">
+                <option value="all">全部</option>
+                <option value="unpaid">未付款</option>
+                <option value="partial">部分付款</option>
+                <option value="paid">已結清</option>
+                <option value="overdue">逾期</option>
+              </select>
+            </label>
+            <label>
+              <span>月份</span>
+              <input id="monthFilter" type="month" />
+            </label>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>類別</th>
+                  <th>團體編號</th>
+                  <th>客戶</th>
+                  <th>服務類型</th>
+                  <th>客戶收款</th>
+                  <th>收款狀態</th>
+                  <th>供應商</th>
+                  <th>應付供應商</th>
+                  <th>NCC狀態</th>
+                  <th>狀態</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="ordersTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="paymentsView">
+          <div class="panel split-panel">
+            <form class="form-grid" id="paymentForm">
+              <div class="form-title">
+                <p class="eyebrow">新增付款</p>
+                <h3>登記收付紀錄</h3>
+              </div>
+              <label>
+                <span>訂單</span>
+                <select id="paymentOrderSelect" required></select>
+              </label>
+              <label>
+                <span>款項類型</span>
+                <select id="paymentDirectionInput">
+                  <option value="income">客戶收款</option>
+                  <option value="expense">供應商付款</option>
+                </select>
+              </label>
+              <label>
+                <span>付款日期</span>
+                <input id="paymentDateInput" type="date" required />
+              </label>
+              <label>
+                <span>付款金額</span>
+                <input id="paymentAmountInput" type="number" min="0" step="1" required />
+              </label>
+              <label>
+                <span>付款方式</span>
+                <select id="paymentMethodInput">
+                  <option>銀行轉帳</option>
+                  <option>信用卡</option>
+                  <option>現金</option>
+                  <option>第三方支付</option>
+                  <option>其他</option>
+                </select>
+              </label>
+              <label>
+                <span>會計科目</span>
+                <input id="accountCodeInput" placeholder="例如：簽證收入 / NCC成本" />
+              </label>
+              <label class="full">
+                <span>備註</span>
+                <textarea id="paymentNoteInput" rows="3" placeholder="交易末五碼、發票號碼、特殊說明"></textarea>
+              </label>
+              <button class="primary-button full" type="submit">新增付款紀錄</button>
+            </form>
+
+            <div>
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">收款流水</p>
+                  <h3>所有付款紀錄</h3>
+                </div>
+              </div>
+              <div class="compact-list tall" id="paymentsList"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="accountingView">
+          <div class="toolbar">
+            <label>
+              <span>起始日</span>
+              <input id="accountingStartInput" type="date" />
+            </label>
+            <label>
+              <span>結束日</span>
+              <input id="accountingEndInput" type="date" />
+            </label>
+            <label>
+              <span>付款方式</span>
+              <select id="accountingMethodFilter">
+                <option value="all">全部</option>
+                <option>銀行轉帳</option>
+                <option>信用卡</option>
+                <option>現金</option>
+                <option>第三方支付</option>
+                <option>其他</option>
+              </select>
+            </label>
+          </div>
+          <div class="accounting-summary" id="accountingSummary"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>付款日</th>
+                  <th>類別</th>
+                  <th>團體編號</th>
+                  <th>客戶</th>
+                  <th>款項</th>
+                  <th>付款方式</th>
+                  <th>科目</th>
+                  <th>金額</th>
+                  <th>備註</th>
+                </tr>
+              </thead>
+              <tbody id="accountingTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="importView">
+          <div class="panel import-panel">
+            <div>
+              <p class="eyebrow">Google Sheet 匯總</p>
+              <h3>匯入三個分頁資料</h3>
+              <p class="muted">
+                從 Google Sheet 各分頁下載 CSV 後貼上。系統會盡量辨識截圖中的欄位，例如日期、團體編號、客戶名稱、簽證/通關類型、客戶收款金額、供應商名稱、NCC 金額與付款狀態。
+              </p>
+            </div>
+
+            <div class="import-grid">
+              <label>
+                <span>1. 公司辦理 CSV</span>
+                <textarea id="companyCsvInput" rows="8" placeholder="貼上「公司辦理」分頁 CSV"></textarea>
+              </label>
+              <label>
+                <span>2. VISA CSV</span>
+                <textarea id="visaCsvInput" rows="8" placeholder="貼上「VISA」分頁 CSV"></textarea>
+              </label>
+              <label>
+                <span>3. FAST TRACK CSV</span>
+                <textarea id="fastTrackCsvInput" rows="8" placeholder="貼上「FAST TRACK」分頁 CSV"></textarea>
+              </label>
+            </div>
+
+            <div class="import-actions">
+              <button class="ghost-button" id="loadSampleButton" type="button">載入範例資料</button>
+              <button class="primary-button" id="importCsvButton" type="button">匯入並合併</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="adminView">
+          <div class="workspace-grid admin-grid">
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">員工後台</p>
+                  <h3>帳號與部門權限</h3>
+                </div>
+                <button class="primary-button" id="openUserModalButton" type="button">新增員工</button>
+              </div>
+              <div class="table-wrap">
+                <table class="users-table">
+                  <thead>
+                    <tr>
+                      <th>姓名</th>
+                      <th>帳號</th>
+                      <th>部門</th>
+                      <th>角色</th>
+                      <th>可查看頁面</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usersTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">部門範本</p>
+                  <h3>建議權限</h3>
+                </div>
+              </div>
+              <div class="compact-list">
+                <article class="list-item">
+                  <header><span>客服</span></header>
+                  <p>總覽、訂單管理、付款紀錄</p>
+                </article>
+                <article class="list-item">
+                  <header><span>OP</span></header>
+                  <p>總覽、訂單管理、資料匯入</p>
+                </article>
+                <article class="list-item">
+                  <header><span>會計</span></header>
+                  <p>總覽、付款紀錄、會計檢視</p>
+                </article>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="orderDialog">
+      <form class="modal-card" id="orderForm" method="dialog">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Order</p>
+            <h3 id="orderModalTitle">新增訂單</h3>
+          </div>
+          <button class="icon-button" id="closeOrderModalButton" type="button" aria-label="關閉">×</button>
+        </div>
+
+        <input id="editingOrderId" type="hidden" />
+
+        <div class="form-grid">
+          <label>
+            <span>類別</span>
+            <select id="businessTypeInput">
+              <option>公司辦理</option>
+              <option>VISA</option>
+              <option>FAST TRACK</option>
+            </select>
+          </label>
+          <label>
+            <span>團體編號</span>
+            <input id="groupNoInput" required />
+          </label>
+          <label>
+            <span>客戶名稱</span>
+            <input id="customerInput" required />
+          </label>
+          <label>
+            <span>簽證 / 通關類型</span>
+            <input id="serviceTypeInput" placeholder="例：90天一次、送機 S - Fast Track - 出境" />
+          </label>
+          <label>
+            <span>日期</span>
+            <input id="orderDateInput" type="date" required />
+          </label>
+          <label>
+            <span>辦理時間</span>
+            <input id="processTimeInput" type="datetime-local" />
+          </label>
+          <label>
+            <span>初見時間</span>
+            <input id="firstSeenTimeInput" type="datetime-local" />
+          </label>
+          <label>
+            <span>客戶收款金額</span>
+            <input id="customerAmountInput" type="number" min="0" step="1" required />
+          </label>
+          <label>
+            <span>收入幣別</span>
+            <select id="incomeCurrencyInput">
+              <option>TWD</option>
+              <option>USD</option>
+              <option>VND</option>
+              <option>HKD</option>
+              <option>CNY</option>
+            </select>
+          </label>
+          <label>
+            <span>收款帳戶</span>
+            <input id="receivingAccountInput" />
+          </label>
+          <label>
+            <span>客戶付款狀態</span>
+            <select id="customerPaymentStatusInput">
+              <option>未付款</option>
+              <option>部分付款</option>
+              <option>已付款</option>
+            </select>
+          </label>
+          <label>
+            <span>公司付款金額</span>
+            <input id="companyPaidAmountInput" type="number" min="0" step="1" />
+          </label>
+          <label>
+            <span>供應商名稱</span>
+            <input id="supplierNameInput" />
+          </label>
+          <label>
+            <span>應付供應商金額</span>
+            <input id="supplierAmountInput" type="number" min="0" step="1" />
+          </label>
+          <label>
+            <span>成本幣別</span>
+            <select id="costCurrencyInput">
+              <option>USD</option>
+              <option>TWD</option>
+              <option>VND</option>
+              <option>HKD</option>
+              <option>CNY</option>
+            </select>
+          </label>
+          <label>
+            <span>供應商付款狀態</span>
+            <select id="supplierPaymentStatusInput">
+              <option>未付款</option>
+              <option>已付款</option>
+              <option>不適用</option>
+            </select>
+          </label>
+          <label class="full">
+            <span>備註</span>
+            <textarea id="orderNoteInput" rows="3"></textarea>
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button class="ghost-button" id="cancelOrderButton" type="button">取消</button>
+          <button class="primary-button" type="submit">儲存訂單</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="userDialog">
+      <form class="modal-card" id="userForm" method="dialog">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">User</p>
+            <h3 id="userModalTitle">新增員工</h3>
+          </div>
+          <button class="icon-button" id="closeUserModalButton" type="button" aria-label="關閉">×</button>
+        </div>
+
+        <input id="editingUserId" type="hidden" />
+
+        <div class="form-grid">
+          <label>
+            <span>姓名</span>
+            <input id="employeeNameInput" required />
+          </label>
+          <label>
+            <span>登入帳號</span>
+            <input id="employeeUsernameInput" autocomplete="off" required />
+          </label>
+          <label>
+            <span>登入密碼</span>
+            <input id="employeePasswordInput" type="password" autocomplete="new-password" />
+          </label>
+          <label>
+            <span>部門</span>
+            <select id="employeeDepartmentInput">
+              <option>客服</option>
+              <option>OP</option>
+              <option>會計</option>
+              <option>管理</option>
+              <option>其他</option>
+            </select>
+          </label>
+          <label>
+            <span>角色</span>
+            <select id="employeeRoleInput">
+              <option value="staff">員工</option>
+              <option value="admin">主管理員</option>
+            </select>
+          </label>
+          <fieldset class="permission-field full">
+            <legend>可查看頁面</legend>
+            <label><input type="checkbox" name="permissions" value="dashboard" /> 總覽</label>
+            <label><input type="checkbox" name="permissions" value="orders" /> 訂單管理</label>
+            <label><input type="checkbox" name="permissions" value="payments" /> 付款紀錄</label>
+            <label><input type="checkbox" name="permissions" value="accounting" /> 會計檢視</label>
+            <label><input type="checkbox" name="permissions" value="import" /> 資料匯入</label>
+            <label><input type="checkbox" name="permissions" value="admin" /> 員工權限</label>
+          </fieldset>
+        </div>
+
+        <p class="muted">編輯員工時若不填新密碼，會保留原本密碼。</p>
+        <p class="form-error" id="userFormError" role="alert"></p>
+
+        <div class="modal-actions">
+          <button class="ghost-button" id="cancelUserButton" type="button">取消</button>
+          <button class="primary-button" type="submit">儲存員工</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
